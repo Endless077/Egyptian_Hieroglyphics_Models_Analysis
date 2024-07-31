@@ -11,8 +11,9 @@ data:
 
 model:
   batch_size: 8
-  epochs: 1
+  epochs: 10
   log_progress_steps: 1000
+  learning_rate: 0.001
   seed: 261
 
 hydra:
