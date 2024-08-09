@@ -11,8 +11,8 @@ from torch import nn, optim
 from torch.utils.data import Subset, DataLoader
 from torchvision import transforms
 import matplotlib.pyplot as plt
-from dataset import GlyphData  # Import personalizzato del dataset
-from model import Glyphnet  # Import del modello personalizzato
+from dataset import GlyphData
+from model import Glyphnet
 
 
 def train(model: nn.Module, train_loader: DataLoader, optimizer: optim.Optimizer,

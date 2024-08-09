@@ -5,9 +5,9 @@ defaults:
   - _self_
 
 data:
-  train_path: "prepared_data/train/"
+  train_path: "preprocess_data/train/"
   val_fraction: 0.3
-  test_path: "prepared_data/test/"
+  test_path: "preprocess_data/test/"
 
 model:
   batch_size: 8

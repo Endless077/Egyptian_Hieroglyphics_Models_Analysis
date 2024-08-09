@@ -17,12 +17,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = Glyphnet()
 checkpoint = torch.load("results/2024-07-31_11-57-19/best_model_weights.pth", map_location=device)
 
-
-
 # Carica i pesi nel modello
 model.load_state_dict(checkpoint, strict=False)
 model.eval()  # Imposta il modello in modalità valutazione
 model.to(device)  # Sposta il modello sul dispositivo (GPU o CPU)
+
 
 # Definisci la funzione di predizione
 def predict(input_tensor):
@@ -33,6 +32,7 @@ def predict(input_tensor):
         probabilities = torch.nn.functional.softmax(output, dim=1)  # Calcola le probabilità usando softmax
         return probabilities.cpu().numpy()  # Converti le probabilità in un array numpy e spostale sulla CPU
 
+
 # Definisci la funzione di preprocessing per le immagini
 def preprocess_image(image):
     transform = transforms.Compose([
@@ -40,6 +40,7 @@ def preprocess_image(image):
         transforms.ToTensor(),  # Converte l'immagine in un tensore
     ])
     return transform(image).unsqueeze(0)  # Aggiunge una dimensione per il batch
+
 
 # Definisci la funzione per creare perturbazioni dell'immagine
 def perturb_image(image, segments, base_prediction, threshold=0.05):
@@ -56,6 +57,7 @@ def perturb_image(image, segments, base_prediction, threshold=0.05):
 
     return np.array(perturbed_images)  # Restituisci le immagini perturbate come array numpy
 
+
 # Definisci la funzione per spiegare un'immagine
 def explain_image(image):
     # Converti l'immagine in scala di grigi se necessario
@@ -67,14 +69,16 @@ def explain_image(image):
     segments = slic(image, n_segments=100, compactness=10)  # Aumenta il numero di segmenti
 
     # Fai la previsione base
-    base_image_tensor = preprocess_image(Image.fromarray(image)).float().to(device)  # Preprocessa e sposta sul dispositivo
+    base_image_tensor = preprocess_image(Image.fromarray(image)).float().to(
+        device)  # Preprocessa e sposta sul dispositivo
     base_prediction = predict(base_image_tensor)  # Ottieni la previsione di base
 
     # Crea perturbazioni dell'immagine
     perturbed_images = perturb_image(image, segments, base_prediction)
 
     # Preprocessa le immagini perturbate e crea il batch tensor
-    perturbed_images_tensor = torch.cat([preprocess_image(Image.fromarray(img)).float() for img in perturbed_images], dim=0).to(device)
+    perturbed_images_tensor = torch.cat([preprocess_image(Image.fromarray(img)).float() for img in perturbed_images],
+                                        dim=0).to(device)
 
     # Fai previsioni sulle immagini perturbate
     predictions = predict(perturbed_images_tensor)
@@ -94,6 +98,7 @@ def explain_image(image):
     plt.imshow(explanation, alpha=0.5, cmap='jet')
     plt.colorbar()
     plt.show()
+
 
 # Definizione dei label di training
 train_path = "prepared_data/train"

@@ -1,6 +1,13 @@
 # Ignore Dataset
 data
 prepared_data
+images
+preprocess_data
+balanced_data_prov
 
 # __pycache__
 __pycache__
+
+#results
+results
+result_transfer_learning

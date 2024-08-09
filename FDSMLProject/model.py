@@ -1,8 +1,7 @@
 # coding: utf-8
-
+import torch
 from torch import nn
 from torch.nn import Sequential
-import logging
 
 from model_blocks import FirstBlock, InnerBlock, FinalBlock
 
@@ -47,7 +46,6 @@ class Glyphnet(nn.Module):
 
 
 if __name__ == "__main__":
-    import torch
 
     model = Glyphnet()
 

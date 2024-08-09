@@ -1,0 +1,30 @@
+data:
+  train_path: 'prepared_data/train/'
+  val_path: 'prepared_data/test/'
+
+  val_fraction: 0.3
+  test_path: "prepared_data/test/"
+
+train:
+  batch_size: 64
+  learning_rate: 0.01  # Ridotto ulteriormente il learning rate
+  num_epochs: 10
+  dropout: 0.1
+
+results:
+  dir: 'result_ensamble_learning'
+
+hydra:
+  job:
+    config:
+      override_dirname:
+        exclude_keys:
+          - model.log_progress_steps
+  run:
+    dir: ./result_ensamble_learning/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: results/${data.path}/
+    subdir: ${hydra.job.override_dirname}
+  help:
+    template:
+      "This is the script for training GlyphNet reimplemented in PyTorch"
