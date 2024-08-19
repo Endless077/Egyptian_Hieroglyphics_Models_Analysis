@@ -1,18 +1,23 @@
 data:
-  train_path: 'prepared_data/train/'
-  val_path: 'prepared_data/test/'
+  train_path: 'classification_dataset/train/'
+  val_path: 'classification_dataset/valid/'
 
   val_fraction: 0.3
-  test_path: "prepared_data/test/"
+  test_path: "classification_dataset/test/"
 
 train:
   batch_size: 64
-  learning_rate: 0.01  # Ridotto ulteriormente il learning rate
+  learning_rate: 0.01
   num_epochs: 10
   dropout: 0.1
 
 results:
   dir: 'result_ensamble_learning'
+
+model:
+  seed: 42
+
+
 
 hydra:
   job:

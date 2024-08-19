@@ -108,7 +108,7 @@ def analyze_dataset(data_dir: str, class_to_idx: Dict[str, int]):
 
 if __name__ == "__main__":
     # Percorso del dataset
-    data_dir = "prepared_data/train"
+    data_dir = "balanced_data/train"
 
     # Analizza il dataset
     analyze_dataset(data_dir, class_to_idx)

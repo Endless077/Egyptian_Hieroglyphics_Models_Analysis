@@ -1,0 +1,13 @@
+train: ../dataset/train/images
+val: ../dataset/valid/images
+test: ..dataset//test/images
+
+nc: 50
+names: ['2_legs', '2_lines_slanted', '3_humps', '3_vertical_lines', 'a', 'amulet', 'ank', 'arm', 'belt', 'bird', 'box', 'brush', 'bug', 'cello', 'chair', 'circle', 'circle_with_triangles', 'cooking_pot', 'curvy_thing', 'downward_c', 'dream_catcher', 'egg', 'eye', 'feather', 'feather_2', 'flag', 'flathead_staff', 'grain', 'half_moon_bot', 'half_moon_top', 'hand', 'head', 'hook', 'hook2', 'leg', 'mouth', 'person', 'plate', 'pot2', 'snail', 'snake', 'snake_moon_line', 'spiral', 'table2', 'tea_cup', 'triangle', 'tuning_fork2', 'twist', 'u', 'water']
+
+roboflow:
+  workspace: matthew-custer-bclqa
+  project: cota_coco_50
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/matthew-custer-bclqa/cota_coco_50/dataset/1

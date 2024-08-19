@@ -11,7 +11,7 @@ import utils
 idx_to_class = {v: k for k, v in utils.class_to_idx.items()}
 
 # Carica l'immagine
-image_path = 'data/Dataset/Pictures/img.jpg'
+image_path = 'dataset/train/images/Screen-Shot-2020-07-06-at-4-06-21-PM_2_png.rf.3c33d4907c2df4907d46deb8aae38e71.jpg'
 image = Image.open(image_path)
 image = np.array(image)
 
@@ -40,7 +40,7 @@ filtered_contours = [cnt for cnt in contours if cv2.contourArea(cnt) > 110]
 
 # Carica il modello addestrato
 model = Glyphnet(num_classes=171)  # Sostituisci 171 con il numero corretto di classi
-model.load_state_dict(torch.load("results/2024-08-07_18-22-54/best_model_weights.pth"))
+model.load_state_dict(torch.load("results/2024-08-09_11-24-30/best_model_weights.pth"))
 model.eval()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)

@@ -1,62 +1,113 @@
+import logging
 import os
 import time
 import torch
-from sklearn.model_selection import ParameterGrid
+from codecarbon import EmissionsTracker
 from torch import nn
 from torch.utils.data import DataLoader
-from torchvision import transforms
+from torchvision import models, transforms
 from torchvision.datasets import ImageFolder
 import hydra
 from omegaconf import DictConfig
-from efficientnet_pytorch import EfficientNet
+import pretrainedmodels
+import torch.nn.utils
 
-# Definizione delle trasformazioni per il dataset
+# Configurazione del logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Define the transformations for the dataset
 data_transforms = {
     'train': transforms.Compose([
-        transforms.Grayscale(num_output_channels=1),
         transforms.Resize((224, 224)),
-        transforms.ToTensor(),
+        transforms.RandomResizedCrop(224),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
+        transforms.RandomRotation(30),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),  # Apply ToTensor before Normalize
+        transforms.Normalize(mean=[0.5], std=[0.5]),  # Normalize after ToTensor
+        transforms.RandomErasing(p=0.5),  # Optional: RandomErasing after Normalize
     ]),
     'val': transforms.Compose([
-        transforms.Grayscale(num_output_channels=1),
         transforms.Resize((224, 224)),
-        transforms.ToTensor(),
+        transforms.ToTensor(),  # Apply ToTensor before Normalize
+        transforms.Normalize(mean=[0.5], std=[0.5]),  # Normalize after ToTensor
     ]),
 }
 
 
-# Funzione per modificare il modello EfficientNet per immagini in scala di grigi
-def modify_efficientnet(model):
-    model._conv_stem = nn.Conv2d(1, model._conv_stem.out_channels,
-                                 kernel_size=model._conv_stem.kernel_size,
-                                 stride=model._conv_stem.stride,
-                                 padding=model._conv_stem.padding,
-                                 bias=False)
+# Function to load the Xception model without pre-trained weights
+def load_custom_xception_model(pretrained=False):
+    model = pretrainedmodels.__dict__['xception'](pretrained=True)
+    logging.info("Xception model loaded with pre-trained weights.")
     return model
 
 
-# Funzione di addestramento
-def train_model(model, criterion, optimizer, train_loader, val_loader, device, scheduler, num_epochs=25):
+# Function to modify the model for grayscale images
+def modify_model(model, model_name):
+    logging.info(f"Modifying the {model_name} model for grayscale images.")
+    if model_name == 'resnet50':
+        model.conv1 = nn.Conv2d(3, model.conv1.out_channels,
+                                kernel_size=model.conv1.kernel_size,
+                                stride=model.conv1.stride,
+                                padding=model.conv1.padding,
+                                bias=False)
+        model.bn1 = nn.BatchNorm2d(model.conv1.out_channels)  # Add BatchNorm
+    elif model_name == 'inception_v3':
+        model.Conv2d_1a_3x3.conv = nn.Conv2d(3, model.Conv2d_1a_3x3.conv.out_channels,
+                                             kernel_size=model.Conv2d_1a_3x3.conv.kernel_size,
+                                             stride=model.Conv2d_1a_3x3.conv.stride,
+                                             padding=model.Conv2d_1a_3x3.conv.padding,
+                                             bias=False)
+        model.Conv2d_1a_3x3.bn = nn.BatchNorm2d(model.Conv2d_1a_3x3.conv.out_channels)  # Add BatchNorm
+    elif model_name == 'xception':
+        model.conv1 = nn.Conv2d(3, model.conv1.out_channels,
+                                kernel_size=model.conv1.kernel_size,
+                                stride=model.conv1.stride,
+                                padding=model.conv1.padding,
+                                bias=False)
+        model.bn1 = nn.BatchNorm2d(model.conv1.out_channels)  # Add BatchNorm
+    logging.info(f"{model_name} model modification completed.")
+    return model
+
+
+# Training function
+
+# Experiment with a lower max_norm for gradient clipping
+max_norm_value = 0.1
+
+
+def train_model(model, criterion, optimizer, train_loader, val_loader, device, scheduler, num_epochs=25,
+                model_name="model"):
     best_val_acc = 0.0
+    best_model_weights = None
+
     for epoch in range(num_epochs):
         start_time = time.time()
+        logging.info(f"Starting epoch {epoch + 1}/{num_epochs}.")
 
-        # Addestramento
+        # Training
         model.train()
         running_loss = 0.0
-        for inputs, labels in train_loader:
+        for batch_idx, (inputs, labels) in enumerate(train_loader):
             inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
             outputs = model(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
+
+            # Gradient Clipping with a lower max_norm
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_norm_value)
+
             optimizer.step()
             running_loss += loss.item() * inputs.size(0)
 
-        epoch_loss = running_loss / len(train_loader.dataset)
-        print(f'Epoch {epoch}/{num_epochs - 1}, Loss: {epoch_loss:.4f}')
+            if batch_idx % 10 == 0:
+                logging.info(f'Batch {batch_idx}/{len(train_loader)} - Loss: {loss.item():.4f}')
 
-        # Validazione
+        epoch_loss = running_loss / len(train_loader.dataset)
+        logging.info(f'Epoch {epoch + 1} completed. Training Loss: {epoch_loss:.4f}')
+
+        # Validation
         model.eval()
         val_loss = 0.0
         corrects = 0
@@ -74,92 +125,89 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, device, s
 
         val_loss = val_loss / len(val_loader.dataset)
         val_acc = corrects.double() / len(val_loader.dataset)
-        print(f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}')
+        logging.info(f'Epoch {epoch + 1} - Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_acc:.4f}')
 
         end_time = time.time()
         epoch_time = end_time - start_time
-        print(f'Epoch {epoch + 1} training time: {epoch_time:.2f} seconds')
+        logging.info(f'Epoch {epoch + 1} training time: {epoch_time:.2f} seconds')
 
-        scheduler.step(val_loss)  # Step del scheduler
+        scheduler.step(val_loss)  # Step the scheduler
 
-        # Salva il modello se la validazione migliora
+        # Save the model if validation improves
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            print("Validation accuracy improved, saving model...")
+            best_model_weights = model.state_dict()
+            torch.save(best_model_weights, f'best_model_{model_name}.pth')
+            logging.info(f"Validation accuracy improved to {val_acc:.4f}. Saving model weights...")
 
-    return best_val_acc
+    logging.info(f"Training completed. Best validation accuracy: {best_val_acc:.4f}")
+    return best_val_acc, best_model_weights
 
 
 @hydra.main(config_path="./configs", config_name="config_transfer_learning")
 def main(cfg: DictConfig):
+    logging.info("Starting transfer learning training process.")
+
+    # Inizializzazione di CodeCarbon
+    tracker = EmissionsTracker()
+    tracker.start()
+
     train_path = os.path.join(hydra.utils.get_original_cwd(), cfg.data.train_path)
     val_path = os.path.join(hydra.utils.get_original_cwd(), cfg.data.val_path)
 
-    # Caricamento del dataset
+    # Load the dataset
+    logging.info(f"Loading dataset from {train_path} and {val_path}.")
     train_dataset = ImageFolder(root=train_path, transform=data_transforms['train'])
     val_dataset = ImageFolder(root=val_path, transform=data_transforms['val'])
 
-    # Creazione del DataLoader
+    # Create DataLoader
     def create_data_loader(batch_size):
+        logging.info(f"Creating DataLoader with batch size: {batch_size}.")
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
         return train_loader, val_loader
 
-    # Definizione della grid search
-    param_grid = {
-        'batch_size': [16, 32, 64],
-        'learning_rate': [0.1, 0.01, 0.001],
-        'dropout': [0.3, 0.5, 0.7],
-        'num_epochs': [25]
-    }
+    # Set the hyperparameters
+    batch_size = 32
+    learning_rate = 0.001
+    num_epochs = 25
 
-    grid = ParameterGrid(param_grid)
-    best_params = None
-    best_val_acc = 0.0
+    logging.info(f"Using batch size: {batch_size}, learning rate: {learning_rate}, number of epochs: {num_epochs}")
 
-    # Loop attraverso tutte le combinazioni di iperparametri
-    for params in grid:
-        print(f"Testing combination: {params}")
-        train_loader, val_loader = create_data_loader(params['batch_size'])
+    train_loader, val_loader = create_data_loader(batch_size)
 
-        # Caricamento del modello pre-addestrato
-        model = EfficientNet.from_pretrained('efficientnet-b0')
-        model = modify_efficientnet(model)  # Modifica per immagini in scala di grigi
+    # Load model with pre-trained weights
+    if cfg.model.name == 'resnet50':
+        logging.info("Loading ResNet50 model with pre-trained weights.")
+        model = models.resnet50(pretrained=True)
+    elif cfg.model.name == 'inception_v3':
+        logging.info("Loading Inception V3 model with pre-trained weights.")
+        model = models.inception_v3(pretrained=True, aux_logits=False)
+    elif cfg.model.name == 'xception':
+        logging.info("Loading Xception model with pre-trained weights.")
+        model = load_custom_xception_model(pretrained=True)
 
-        # Congelare tutti i layer tranne l'ultimo
-        for param in model.parameters():
-            param.requires_grad = False
+    model = modify_model(model, cfg.model.name)  # Modify for grayscale images
 
-        # Scongelare solo l'ultimo strato
-        model._fc.requires_grad = True
+    # Set the device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
 
-        # Modifica dell'ultimo strato
-        num_features = model._fc.in_features
-        model._fc = nn.Sequential(
-            nn.Dropout(params['dropout']),  # Aggiunta di Dropout per regolarizzazione
-            nn.Linear(num_features, len(train_dataset.classes))
-        )
+    # Define the loss function and optimizer
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-4)  # Added weight decay
 
-        # Impostazione del dispositivo
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model = model.to(device)
+    # Scheduler for learning rate
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.1)
 
-        # Definizione della loss function e dell'ottimizzatore
-        criterion = nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=params['learning_rate'])
+    # Train the model
+    val_acc, _ = train_model(model, criterion, optimizer, train_loader, val_loader, device, scheduler,
+                             num_epochs=num_epochs)
+    logging.info(f"Final validation accuracy: {val_acc:.4f}")
 
-        # Scheduler per il learning rate
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.1)
-
-        # Addestramento del modello
-        val_acc = train_model(model, criterion, optimizer, train_loader, val_loader, device, scheduler,
-                              num_epochs=params['num_epochs'])
-
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
-            best_params = params
-
-    print(f"Best params: {best_params}, Best validation accuracy: {best_val_acc:.4f}")
+    # Interrompi il tracker e salva le metriche di emissione
+    emissions = tracker.stop()
+    logging.info(f"Emissioni di CO2 generate durante l'addestramento: {emissions} kg")
 
 
 if __name__ == "__main__":

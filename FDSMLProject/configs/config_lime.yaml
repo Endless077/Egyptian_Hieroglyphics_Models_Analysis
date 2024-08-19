@@ -1,0 +1,7 @@
+image_path: "C:\\Users\\aless\\Desktop\\Egyptian_Hieroglyphics_Translator\\FDSMLProject\\classification_dataset\\train\\49\\Screen-Shot-2020-07-06-at-4-14-28-PM_0_png.rf.881887ce3d0fbc1f149c23e20af733d0_357_130.jpg"
+ensemble_model_path: "C:\\Users\\aless\\Desktop\\Egyptian_Hieroglyphics_Translator\\FDSMLProject\\result_ensamble_learning\\2024-08-17_17-09-47\\saved_models\\ensemble_model.pth"
+
+num_classes: 50  # Modifica in base al numero di classi
+use_weights: true
+model_weights: [0.5, 0.5]  # Modifica con i pesi calcolati
+true_class: 49  # Imposta la classe vera dell'immagine

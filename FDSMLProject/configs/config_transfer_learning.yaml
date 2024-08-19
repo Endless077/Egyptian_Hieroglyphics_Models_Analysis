@@ -1,15 +1,25 @@
+defaults:
+  - override hydra/job_logging: default
+
 data:
-  train_path: 'prepared_data/train/'
-  val_path: 'prepared_data/test/'
+  dataset_dir: dataset
+  output_dir: classification_dataset
+  train_path: classification_dataset/train
+  val_path: classification_dataset/valid
+  test_path: classification_dataset/test
 
-  val_fraction: 0.3
-  test_path: "prepared_data/test/"
+model:
+  epochs: 25
+  batch_size: 32
+  img_size: 640
+  learning_rate: 0.001
+  name: resnet50
 
-train:
-  batch_size: 64
-  learning_rate: 0.01  # Ridotto ulteriormente il learning rate
-  num_epochs: 10
-  dropout: 0.1
+yolov5:
+  data_yaml: data.yaml
+  epochs: 80
+  batch_size: 4
+  img_size: 320
 
 results:
   dir: 'result_transfer_learning'

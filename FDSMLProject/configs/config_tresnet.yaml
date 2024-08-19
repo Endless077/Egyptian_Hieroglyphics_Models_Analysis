@@ -1,0 +1,38 @@
+# config/config_tresnet.yaml
+
+model:
+  model_name: "tresnet_m"
+  pretrained: true
+  num_classes: 50
+
+train:
+  batch_size: 32
+  num_epochs: 20
+  learning_rate: 0.001
+  img_size: 224
+  scheduler_step_size: 7
+  scheduler_gamma: 0.1
+
+data_dir: "classification_dataset"
+
+data:
+  train_path: "classification_dataset/train/"
+  valid_path: "classification_dataset/valid/"
+  test_path: "classification_dataset/test/"
+
+device: ${oc.env:DEVICE,cuda:0}
+
+hydra:
+  job:
+    config:
+      override_dirname:
+        exclude_keys:
+          - model.log_progress_steps
+  run:
+    dir: ./results_tresnet/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: results_tresnet/${data.path}/
+    subdir: ${hydra.job.override_dirname}
+  help:
+    template:
+      "This is the script for training GlyphNet reimplemented in PyTorch"

@@ -4,6 +4,9 @@ prepared_data
 images
 preprocess_data
 balanced_data_prov
+balanced_data
+dataset
+classification_dataset
 
 # __pycache__
 __pycache__
@@ -11,3 +14,8 @@ __pycache__
 #results
 results
 result_transfer_learning
+result_atcnet
+result_ensamble_learning
+results_tresnet
+
+yolov5

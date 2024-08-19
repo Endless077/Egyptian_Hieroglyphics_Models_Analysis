@@ -5,13 +5,13 @@ defaults:
   - _self_
 
 data:
-  train_path: "preprocess_data/train/"
+  train_path: "classification_dataset/train/"
   val_fraction: 0.3
-  test_path: "preprocess_data/test/"
+  test_path: "classification_dataset/test/"
 
 model:
   batch_size: 8
-  epochs: 10
+  epochs: 20
   log_progress_steps: 1000
   learning_rate: 0.001
   seed: 261

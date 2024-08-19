@@ -1,3 +1,6 @@
+import os
+import cv2
+
 # Definisci class_to_idx e idx_to_class
 class_to_idx = {
     'A55': 0, 'Aa15': 1, 'Aa26': 2, 'Aa27': 3, 'Aa28': 4, 'D1': 5, 'D10': 6, 'D156': 7, 'D19': 8,
@@ -21,3 +24,71 @@ class_to_idx = {
     'W18': 156, 'W19': 157, 'W22': 158, 'W24': 159, 'W25': 160, 'X1': 161, 'X6': 162, 'X8': 163,
     'Y1': 164, 'Y2': 165, 'Y3': 166, 'Y5': 167, 'Z1': 168, 'Z11': 169, 'Z7': 170
 }
+
+
+# Funzione per convertire il dataset YOLOv5 in un dataset di classificazione
+def convert_yolo_to_classification(dataset_dir='dataset', output_dir='classification_dataset'):
+    # Funzione per convertire coordinate normalizzate in coordinate di pixel
+    def normalize_to_pixel_coords(coords, img_width, img_height):
+        pixel_coords = []
+        for i in range(0, len(coords), 2):
+            x = int(coords[i] * img_width)
+            y = int(coords[i + 1] * img_height)
+            pixel_coords.append((x, y))
+        return pixel_coords
+
+    # Funzione per ottenere la bounding box minima da una serie di punti
+    def get_bounding_box_from_points(points):
+        x_min = min(point[0] for point in points)
+        y_min = min(point[1] for point in points)
+        x_max = max(point[0] for point in points)
+        y_max = max(point[1] for point in points)
+        return x_min, y_min, x_max, y_max
+
+    # Processare ogni parte del dataset (train, val, test)
+    for split in ['train', 'valid', 'test']:
+        split_images_dir = os.path.join(dataset_dir, split, 'images')
+        split_labels_dir = os.path.join(dataset_dir, split, 'labels')
+        split_output_dir = os.path.join(output_dir, split)
+
+        # Creare la struttura di output
+        if not os.path.exists(split_output_dir):
+            os.makedirs(split_output_dir)
+
+        # Processare ogni immagine e file di annotazione
+        for label_file in os.listdir(split_labels_dir):
+            with open(os.path.join(split_labels_dir, label_file), 'r') as f:
+                annotations = f.readlines()
+
+            image_path = os.path.join(split_images_dir, label_file.replace('.txt', '.jpg'))
+            image = cv2.imread(image_path)
+            img_height, img_width = image.shape[:2]
+
+            for annotation in annotations:
+                values = list(map(float, annotation.split()))
+
+                class_id = int(values[0])
+                coords = values[1:]  # Tutte le coppie di coordinate
+
+                if len(coords) % 2 != 0:
+                    print(f"Errore: numero dispari di valori nelle coordinate: {coords}")
+                    continue
+
+                # Converti le coordinate normalizzate in coordinate di pixel
+                points = normalize_to_pixel_coords(coords, img_width, img_height)
+
+                # Ottieni la bounding box che contiene tutti i punti
+                x_min, y_min, x_max, y_max = get_bounding_box_from_points(points)
+
+                # Ritagliare l'immagine
+                cropped_img = image[y_min:y_max, x_min:x_max]
+
+                # Salva l'immagine ritagliata nella cartella della classe corrispondente
+                class_folder = os.path.join(split_output_dir, str(class_id))
+                if not os.path.exists(class_folder):
+                    os.makedirs(class_folder)
+
+                img_name = os.path.basename(image_path).replace('.jpg', f'_{x_min}_{y_min}.jpg')
+                cv2.imwrite(os.path.join(class_folder, img_name), cropped_img)
+
+    print("Conversione completata!")
