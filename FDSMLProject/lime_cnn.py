@@ -1,13 +1,13 @@
+import os
+import torch
 import numpy as np
 import timm
-import torch
 import torchvision.transforms as transforms
-from skimage.segmentation import slic
+from skimage.segmentation import slic, mark_boundaries
 from skimage.color import gray2rgb
 import matplotlib.pyplot as plt
-from skimage.segmentation import mark_boundaries
 from PIL import Image
-import os
+from lime import lime_image  # Import the LIME library
 
 from ATCNet import ATCNet
 from model import Glyphnet
@@ -17,6 +17,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def load_model(model_name):
+    """
+    Carica il modello specificato dal nome e carica i pesi salvati.
+
+    Args:
+        model_name (str): Nome del modello da caricare (Glyphnet, ATCNet, tresnet_m).
+
+    Returns:
+        model (torch.nn.Module): Il modello caricato.
+    """
     if model_name == "Glyphnet":
         model = Glyphnet()
         checkpoint = torch.load("results/2024-08-09_11-24-30/best_model_weights.pth", map_location=device)
@@ -27,7 +36,7 @@ def load_model(model_name):
         model.load_state_dict(checkpoint, strict=False)
     elif model_name == "tresnet_m":
         model = timm.create_model('tresnet_m', pretrained=True, num_classes=50)
-        checkpoint = torch.load("best_tresnet_model.pth", map_location=device)
+        checkpoint = torch.load("results_tresnet/best_tresnet_model.pth", map_location=device)
         model.load_state_dict(checkpoint, strict=False)
     else:
         raise ValueError(f"Model {model_name} not recognized.")
@@ -37,113 +46,212 @@ def load_model(model_name):
     return model
 
 
-# Funzione di predizione generica
-def predict(input_tensor, model):
-    model.eval()
-    with torch.no_grad():  # Disabilita il calcolo del gradiente per risparmiare memoria
-        input_tensor = input_tensor.to(device)  # Sposta il tensore sul dispositivo (GPU o CPU)
-        output = model(input_tensor)  # Ottieni l'output del modello
-        probabilities = torch.nn.functional.softmax(output, dim=1)  # Calcola le probabilità usando softmax
-        return probabilities.cpu().numpy()  # Converti le probabilità in un array numpy e spostale sulla CPU
-
-
 def preprocess_image(image, model_name):
-    if model_name == "Glyphnet":
-        transform = transforms.Compose([
-            transforms.Grayscale(num_output_channels=1),  # Converte l'immagine in scala di grigi
-            transforms.Resize((64, 64)),  # Dimensioni specifiche per Glyphnet (adatta le dimensioni secondo necessità)
-            transforms.ToTensor(),  # Converte l'immagine in un tensore
+    """
+    Preprocessa un'immagine in base al modello specificato.
+
+    Args:
+        image (PIL.Image): Immagine da preprocessare.
+        model_name (str): Nome del modello che richiede la preprocessazione.
+
+    Returns:
+        torch.Tensor: Immagine preprocessata come tensore.
+    """
+    transform_dict = {
+        "Glyphnet": transforms.Compose([
+            transforms.Grayscale(num_output_channels=1),
+            transforms.Resize((64, 64)),
+            transforms.ToTensor(),
+        ]),
+        "ATCNet": transforms.Compose([
+            transforms.Grayscale(num_output_channels=1),
+            transforms.Resize((128, 128)),
+            transforms.ToTensor(),
+        ]),
+        "tresnet_m": transforms.Compose([
+            transforms.Grayscale(num_output_channels=3),
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
         ])
-    elif model_name == "ATCNet":
-        transform = transforms.Compose([
-            transforms.Grayscale(num_output_channels=1),  # Converte l'immagine in scala di grigi
-            transforms.Resize((128, 128)),  # Dimensioni specifiche per ATCNet (adatta le dimensioni secondo necessità)
-            transforms.ToTensor(),  # Converte l'immagine in un tensore
-        ])
-    elif model_name == "tresnet_m":
-        transform = transforms.Compose([
-            transforms.Grayscale(num_output_channels=3),  # Converte l'immagine in 3 canali per tresnet_m
-            transforms.Resize((224, 224)),  # Ridimensiona l'immagine a 224x224
-            transforms.ToTensor(),  # Converte l'immagine in un tensore
-        ])
-    else:
+    }
+
+    if model_name not in transform_dict:
         raise ValueError(f"Model {model_name} not recognized.")
 
+    transform = transform_dict[model_name]
     return transform(image).unsqueeze(0)  # Aggiunge una dimensione per il batch
 
 
-# Funzione per creare perturbazioni dell'immagine
+def predict(input_tensor, model):
+    """
+    Effettua una predizione usando il modello fornito.
+
+    Args:
+        input_tensor (torch.Tensor): Input preprocessato.
+        model (torch.nn.Module): Modello da utilizzare per la predizione.
+
+    Returns:
+        np.array: Probabilità previste per ciascuna classe.
+    """
+    with torch.no_grad():
+        input_tensor = input_tensor.to(device)
+        output = model(input_tensor)
+        probabilities = torch.nn.functional.softmax(output, dim=1)
+        return probabilities.cpu().numpy()
+
+
 def perturb_image(image, segments):
+    """
+    Crea versioni perturbate dell'immagine basate sui segmenti.
+
+    Args:
+        image (np.array): Immagine da perturbare.
+        segments (np.array): Segmenti creati dall'algoritmo SLIC.
+
+    Returns:
+        np.array: Immagini perturbate.
+    """
     perturbed_images = []
-    num_segments = np.max(segments) + 1  # Ottieni il numero di segmenti
+    num_segments = np.max(segments) + 1
 
     for i in range(num_segments):
         perturbed_image = image.copy()
-        mask = segments == i  # Crea una maschera per il segmento corrente
-        if np.any(mask):  # Verifica che il segmento non sia vuoto
+        mask = segments == i
+        if np.any(mask):
             mean_value = np.mean(image[mask], axis=0)
             std_value = np.std(image[mask], axis=0)
-            if not np.isnan(mean_value).any() and not np.isnan(
-                    std_value).any():  # Assicurati che la media e la deviazione standard non siano NaN
-                perturbed_image[mask] = np.random.normal(loc=mean_value,
-                                                         scale=std_value)  # Sostituisci i pixel del segmento con rumore
+            if not np.isnan(mean_value).any() and not np.isnan(std_value).any():
+                perturbed_image[mask] = np.random.normal(loc=mean_value, scale=std_value)
             else:
-                perturbed_image[mask] = np.mean(image[mask],
-                                                axis=0)  # Usa la media semplice se ci sono problemi con il calcolo della deviazione standard
-        perturbed_images.append(perturbed_image)  # Aggiungi l'immagine perturbata alla lista
+                perturbed_image[mask] = mean_value
+        perturbed_images.append(perturbed_image)
 
-    return np.array(perturbed_images)  # Restituisci le immagini perturbate come array numpy
+    return np.array(perturbed_images)
 
 
-# Funzione per spiegare un'immagine
-def explain_image(image, model, model_name):
-    # Converti l'immagine in scala di grigi se necessario
+def explain_image_custom(image, model, model_name):
+    """
+    Genera una spiegazione personalizzata per un'immagine utilizzando perturbazioni dei segmenti.
+
+    Args:
+        image (PIL.Image): Immagine da spiegare.
+        model (torch.nn.Module): Modello da utilizzare per la predizione.
+        model_name (str): Nome del modello per la preprocessazione.
+
+    Returns:
+        tuple: Segmenti dell'immagine e spiegazione generata.
+    """
     image = np.array(image)
     if len(image.shape) == 2:
-        image = gray2rgb(image)  # Converte in RGB se è in scala di grigi
+        image = gray2rgb(image)
 
-    # Segmenta l'immagine in superpixel
-    segments = slic(image, n_segments=150, compactness=10)  # Aumenta il numero di segmenti
+    segments = slic(image, n_segments=150, compactness=10)
 
-    # Fai la previsione base
-    base_image_tensor = preprocess_image(Image.fromarray(image), model_name).float().to(
-        device)  # Preprocessa e sposta sul dispositivo
-    base_prediction = predict(base_image_tensor, model)  # Ottieni la previsione di base
+    base_image_tensor = preprocess_image(Image.fromarray(image), model_name).float().to(device)
+    base_prediction = predict(base_image_tensor, model)
 
-    # Crea perturbazioni dell'immagine
     perturbed_images = perturb_image(image, segments)
+    perturbed_images_tensor = torch.cat(
+        [preprocess_image(Image.fromarray(img), model_name).float() for img in perturbed_images], dim=0).to(device)
 
-    # Preprocessa le immagini perturbate e crea il batch tensor
-    perturbed_images_tensor = torch.cat([preprocess_image(Image.fromarray(img), model_name).float() for img in perturbed_images],
-                                        dim=0).to(device)
-
-    # Fai previsioni sulle immagini perturbate
     predictions = predict(perturbed_images_tensor, model)
 
-    # Analizza le previsioni
-    top_label = np.argmax(base_prediction[0])  # Ottieni l'etichetta di previsione principale
-    weights = np.mean(predictions[:, top_label], axis=0)  # Calcola il peso medio per l'etichetta principale
+    top_label = np.argmax(base_prediction[0])
+    weights = np.mean(predictions[:, top_label], axis=0)
 
-    # Genera la spiegazione
     explanation = np.zeros(segments.shape)
     for i in range(np.max(segments) + 1):
-        mask = segments == i
-        explanation[mask] = weights  # Assegna il peso calcolato al segmento
+        explanation[segments == i] = weights
 
-    # Visualizza la spiegazione sovrapponendola all'immagine originale
-    plt.figure(figsize=(8, 6))
-    plt.imshow(mark_boundaries(image / 255.0, segments))
-    plt.imshow(explanation, alpha=0.5, cmap='jet')
-    plt.colorbar()
-    plt.title(f"LIME Explanation for {model.__class__.__name__}")
+    return segments, explanation
+
+
+def explain_image_lime(image, model, model_name):
+    """
+    Genera una spiegazione per un'immagine utilizzando la libreria LIME.
+
+    Args:
+        image (PIL.Image): Immagine da spiegare.
+        model (torch.nn.Module): Modello da utilizzare per la predizione.
+        model_name (str): Nome del modello per la preprocessazione.
+
+    Returns:
+        tuple: Immagine con sovrapposizione della spiegazione e maschera LIME.
+    """
+    def predict_fn(images):
+        images = torch.stack([preprocess_image(Image.fromarray(img), model_name).squeeze(0) for img in images])
+        return predict(images, model)
+
+    explainer = lime_image.LimeImageExplainer()
+    explanation = explainer.explain_instance(np.array(image),
+                                             predict_fn,
+                                             top_labels=5,
+                                             hide_color=0,
+                                             num_samples=1000)
+
+    predicted_class = explanation.top_labels[0]
+    temp, mask = explanation.get_image_and_mask(predicted_class, positive_only=True, num_features=10,
+                                                hide_rest=False)
+
+    return temp, mask
+
+
+def compare_explanations(image, model, model_name):
+    """
+    Confronta le spiegazioni generate dal metodo custom e dalla libreria LIME.
+
+    Args:
+        image (PIL.Image): Immagine da spiegare.
+        model (torch.nn.Module): Modello da utilizzare per la predizione.
+        model_name (str): Nome del modello per la preprocessazione.
+
+    Returns:
+        None
+    """
+    original_image = np.array(image)
+    if len(original_image.shape) == 2:
+        original_image = gray2rgb(original_image)
+
+    # Spiegazione custom
+    segments_custom, explanation_custom = explain_image_custom(image, model, model_name)
+
+    # Spiegazione LIME
+    temp_lime, mask_lime = explain_image_lime(original_image, model, model_name)
+
+    # Creazione del grafico comparativo
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+
+    axs[0].imshow(original_image / 255.0)
+    axs[0].set_title('Original Image')
+    axs[0].axis('off')
+
+    axs[1].imshow(mark_boundaries(original_image / 255.0, segments_custom))
+    axs[1].imshow(explanation_custom, alpha=0.5, cmap='jet')
+    axs[1].set_title('Custom Explanation')
+    axs[1].axis('off')
+
+    axs[2].imshow(mark_boundaries(temp_lime / 255.0, mask_lime))
+    axs[2].imshow(mask_lime, cmap='jet', alpha=0.5)
+    axs[2].set_title('LIME Library Explanation')
+    axs[2].axis('off')
+
     plt.show()
 
 
-# Funzione principale per eseguire LIME su un modello specifico
 def main_lime(model_name):
-    model = load_model(model_name)  # Carica il modello specificato
+    """
+    Esegue la generazione di spiegazioni per un insieme di immagini utilizzando sia il metodo custom che LIME.
 
-    if model_name == 'Glyphnet' or model_name == 'ATCNet':
+    Args:
+        model_name (str): Nome del modello da utilizzare.
+
+    Returns:
+        None
+    """
+    model = load_model(model_name)
+
+    # Definisce i percorsi delle immagini in base al modello
+    if model_name in ['Glyphnet', 'ATCNet']:
         image_paths = [
             "balanced_data/train/Aa26/aug_4_3534f1a21ff6b826a1268c3ae2e13d23.png",
             "balanced_data/train/D1/5c6f10aadc08904fa1edbff37c6da96d.png",
@@ -151,21 +259,17 @@ def main_lime(model_name):
         ]
     else:
         image_paths = [
-            "classification_dataset/train/4/Screen-Shot-2020-07-06-at-4-52-56-PM_1_png.rf"
-            ".d4a00cb87156c556560216c84e118b50_516_341.jpg",
+            "classification_dataset/train/4/Screen-Shot-2020-07-06-at-4-52-56-PM_1_png.rf.d4a00cb87156c556560216c84e118b50_516_341.jpg",
             "classification_dataset/train/49/wall_section9237_3_png.rf.1d0ca3489d53ac9e8ef34f2bcf64a4ac_321_400.jpg",
-            "classification_dataset/train/28/Screen-Shot-2020-07-06-at-4-13-36-PM_0_png.rf"
-            ".c3f68932bc7cccaa4b9336b7282b83ed_240_347.jpg"
+            "classification_dataset/train/47/ZofUksf_4_png.rf.8c84a343c41dc2cfb082f27ee7004230_469_122.jpg"
         ]
 
-    # Itera su ciascun percorso di immagine
     for image_path in image_paths:
         print(f"Processing image: {image_path}")
-        image = Image.open(image_path)  # Carica l'immagine
-        explain_image(image, model, model_name)  # Spiega l'immagine
+        image = Image.open(image_path)
+        compare_explanations(image, model, model_name)
 
 
-# Esempio di utilizzo
 if __name__ == "__main__":
     main_lime("Glyphnet")
     main_lime("ATCNet")

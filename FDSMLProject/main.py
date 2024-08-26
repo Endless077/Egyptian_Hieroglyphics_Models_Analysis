@@ -20,13 +20,13 @@ from ATCNet import ATCNet
 from dataset import GlyphData
 from model import Glyphnet
 
-import codecarbon
-
+# Definisce una griglia di iperparametri per la ricerca
 param_grid = {
     'learning_rate': [0.01, 0.001, 0.0001],
     'batch_size': [32, 64, 128]
 }
 
+# Trasformazioni per l'addestramento dei dati
 train_transform = transforms.Compose([
     transforms.Grayscale(num_output_channels=1),
     transforms.RandomResizedCrop(224),
@@ -38,14 +38,36 @@ train_transform = transforms.Compose([
 
 
 def load_and_split_data(cfg):
+    """
+    Carica i dati di addestramento e test e crea una mappatura delle etichette per i dati di addestramento.
+
+    Args:
+        cfg (DictConfig): Configurazione di Hydra contenente i percorsi dei dati.
+
+    Returns:
+        Tuple[Dict[str, int], str, str]: Mappatura delle etichette di addestramento, percorso dei dati di test, percorso dei dati di addestramento.
+    """
     train_path = os.path.join(hydra.utils.get_original_cwd(), cfg.data.train_path)
     test_path = os.path.join(hydra.utils.get_original_cwd(), cfg.data.test_path)
 
+    # Crea una mappatura delle etichette di addestramento
     train_labels = {l: i for i, l in enumerate(sorted([p.strip("/") for p in listdir(train_path)]))}
-    return train_labels, test_path,train_path
+    return train_labels, test_path, train_path
 
 
 def evaluate_model(model: nn.Module, test_loader: DataLoader, device: torch.device, num_classes: int):
+    """
+    Valuta il modello su un set di test e calcola le metriche di valutazione.
+
+    Args:
+        model (nn.Module): Il modello da valutare.
+        test_loader (DataLoader): DataLoader contenente i dati di test.
+        device (torch.device): Il dispositivo su cui eseguire il modello (CPU o GPU).
+        num_classes (int): Numero di classi nel dataset.
+
+    Returns:
+        None
+    """
     model.eval()
     all_predictions, all_gold = [], []
     all_logits = []
@@ -98,6 +120,21 @@ def evaluate_model(model: nn.Module, test_loader: DataLoader, device: torch.devi
 def train(model: nn.Module, train_loader: DataLoader, optimizer: optim.Optimizer,
           loss_function: nn.Module, current_epoch_number: int = 0,
           device: torch.device = None, batch_reports_interval: int = 100):
+    """
+    Addestra il modello su un epoch.
+
+    Args:
+        model (nn.Module): Il modello da addestrare.
+        train_loader (DataLoader): DataLoader contenente i dati di addestramento.
+        optimizer (optim.Optimizer): Ottimizzatore per aggiornare i pesi del modello.
+        loss_function (nn.Module): Funzione di perdita da utilizzare.
+        current_epoch_number (int): Numero dell'epoch corrente.
+        device (torch.device): Il dispositivo su cui eseguire il modello (CPU o GPU).
+        batch_reports_interval (int): Numero di batch dopo i quali loggare lo stato.
+
+    Returns:
+        None
+    """
     model.train()  # Imposta il modello in modalità addestramento
     loss_accum = 0  # Accumulatore per la perdita
 
@@ -119,55 +156,142 @@ def train(model: nn.Module, train_loader: DataLoader, optimizer: optim.Optimizer
 
 
 def softmax2predictions(output: torch.Tensor) -> torch.Tensor:
+    """
+    Converte l'output softmax del modello in predizioni di classe.
+
+    Args:
+        output (torch.Tensor): Output del modello.
+
+    Returns:
+        torch.Tensor: Indici delle classi predette.
+    """
     return torch.topk(output, k=1, dim=-1).indices.flatten()
 
 
-def test(model: nn.Module, test_loader: DataLoader, loss_function: nn.Module, device):
+def validate(model: nn.Module, val_loader: DataLoader, loss_function: nn.Module, device):
+    """
+    Valida il modello sul set di validazione e calcola le metriche.
+
+    Args:
+        model (nn.Module): Il modello da validare.
+        val_loader (DataLoader): DataLoader contenente i dati di validazione.
+        loss_function (nn.Module): Funzione di perdita da utilizzare.
+        device (torch.device): Il dispositivo su cui eseguire il modello (CPU o GPU).
+
+    Returns:
+        Tuple[float, np.ndarray, np.ndarray]: Perdita media su tutto il set di validazione, etichette vere, predizioni.
+    """
     model.eval()
-    test_loss, correct = 0, 0
+    val_loss = 0.0
     all_predictions, all_gold = [], []
 
     with torch.no_grad():
-        for data, target in test_loader:
+        for data, target in val_loader:
             target = target.to(device)
             output = model(data.to(device))
             pred = softmax2predictions(output)
 
-            test_loss += loss_function(output, target).sum().item()
-            correct += pred.eq(target.view_as(pred)).sum().item()
-
+            val_loss += loss_function(output, target).sum().item()
             all_predictions.append(pred.cpu().numpy())
             all_gold.append(target.cpu().numpy())
 
-    test_loss /= len(test_loader.dataset)
-
-    logging.info('    Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)'.format(
-        test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
+    val_loss /= len(val_loader.dataset)
 
     y_pred = np.concatenate(all_predictions)
     y_true = np.concatenate(all_gold)
 
-    logging.info("    Acc.: %2.2f%%; F-macro: %2.2f%%\n" % (accuracy_score(y_true, y_pred) * 100,
-                                                            f1_score(y_true, y_pred, average="macro") * 100))
-    return accuracy_score(y_true, y_pred)
+    acc = accuracy_score(y_true, y_pred)
+    logging.info('    Validation loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)'.format(
+        val_loss, np.sum(y_pred == y_true), len(val_loader.dataset),
+        100. * acc))
+
+    return val_loss, y_true, y_pred
 
 
 def train_and_evaluate(train_loader, val_loader, model, optimizer, scheduler, loss_function, device, epochs,
                        model_name, early_stopping_patience=10):
+    """
+    Addestra e valuta il modello utilizzando un meccanismo di early stopping.
+
+    Args:
+        train_loader (DataLoader): DataLoader contenente i dati di addestramento.
+        val_loader (DataLoader): DataLoader contenente i dati di validazione.
+        model (nn.Module): Il modello da addestrare e valutare.
+        optimizer (optim.Optimizer): Ottimizzatore per aggiornare i pesi del modello.
+        scheduler (optim.lr_scheduler._LRScheduler): Scheduler per aggiornare il tasso di apprendimento.
+        loss_function (nn.Module): Funzione di perdita da utilizzare.
+        device (torch.device): Il dispositivo su cui eseguire il modello (CPU o GPU).
+        epochs (int): Numero di epoche per cui addestrare il modello.
+        model_name (str): Nome del modello per salvare i pesi.
+        early_stopping_patience (int): Numero di epoche senza miglioramenti dopo cui fermare l'addestramento.
+
+    Returns:
+        Dict[str, List[float]]: Metriche raccolte durante l'addestramento e la validazione.
+    """
     best_val_acc = 0.0
     early_stopping_counter = 0
 
+    # Liste per salvare le metriche
+    train_accuracies, val_accuracies = [], []
+    train_f1_scores, val_f1_scores = [], []
+    train_precisions, val_precisions = [], []
+    train_recalls, val_recalls = [], []
+    train_losses, val_losses = [], []
+
     for epoch in range(epochs):
         start_time = time.time()
-        train(model, train_loader, optimizer, loss_function, epoch, device)
+
+        # Fase di addestramento
+        model.train()
+        running_loss = 0.0
+        y_true_train = []
+        y_pred_train = []
+        for data, target in train_loader:
+            optimizer.zero_grad()
+            output = model(data.to(device))
+            loss = loss_function(output, target.to(device))
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
+            y_pred_train.append(softmax2predictions(output).cpu().numpy())
+            y_true_train.append(target.cpu().numpy())
+
+        y_pred_train = np.concatenate(y_pred_train)
+        y_true_train = np.concatenate(y_true_train)
+
+        train_loss = running_loss / len(train_loader)
+        train_acc = accuracy_score(y_true_train, y_pred_train)
+        train_f1 = f1_score(y_true_train, y_pred_train, average='macro', zero_division=0)
+        train_precision = precision_score(y_true_train, y_pred_train, average='macro', zero_division=0)
+        train_recall = recall_score(y_true_train, y_pred_train, average='macro', zero_division=0)
+
+        # Salvare le metriche di addestramento
+        train_losses.append(train_loss)
+        train_accuracies.append(train_acc)
+        train_f1_scores.append(train_f1)
+        train_precisions.append(train_precision)
+        train_recalls.append(train_recall)
+
         end_time = time.time()
+        logging.info(f"Epoch {epoch + 1} training time: {end_time - start_time:.2f} seconds")
 
-        epoch_time = end_time - start_time
-        logging.info(f"Epoch {epoch + 1} training time: {epoch_time:.2f} seconds")
-
+        # Fase di validazione
         logging.info("Evaluation on development set:")
-        val_acc = test(model, val_loader, loss_function, device)
+        val_loss, y_true_val, y_pred_val = validate(model, val_loader, loss_function, device)
+
+        val_f1 = f1_score(y_true_val, y_pred_val, average='macro', zero_division=0)
+        val_precision = precision_score(y_true_val, y_pred_val, average='macro', zero_division=0)
+        val_recall = recall_score(y_true_val, y_pred_val, average='macro', zero_division=0)
+        val_acc = accuracy_score(y_true_val, y_pred_val)
+
+        # Salvare le metriche di validazione
+        val_losses.append(val_loss)
+        val_accuracies.append(val_acc)
+        val_f1_scores.append(val_f1)
+        val_precisions.append(val_precision)
+        val_recalls.append(val_recall)
+
         scheduler.step()
 
         if val_acc > best_val_acc:
@@ -181,14 +305,79 @@ def train_and_evaluate(train_loader, val_loader, model, optimizer, scheduler, lo
                 logging.info("Early stopping triggered")
                 break
 
-    return best_val_acc
+    return {
+        'train_accuracies': train_accuracies,
+        'val_accuracies': val_accuracies,
+        'train_losses': train_losses,
+        'val_losses': val_losses,
+        'train_f1_scores': train_f1_scores,
+        'val_f1_scores': val_f1_scores,
+        'train_precisions': train_precisions,
+        'val_precisions': val_precisions,
+        'train_recalls': train_recalls,
+        'val_recalls': val_recalls
+    }
+
+
+def plot_learning_curves(m):
+    """
+    Plot delle curve di apprendimento per accuracy e loss.
+
+    Args:
+        m (Dict[str, List[float]]): Metriche raccolte durante l'addestramento e la validazione.
+
+    Returns:
+        None
+    """
+    epochs = range(1, len(m['train_accuracies']) + 1)
+
+    # Plot per la loss
+    plt.figure(figsize=(12, 4))
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, m['train_losses'], label='Train Loss')
+    plt.plot(epochs, m['val_losses'], label='Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.title('Learning Curve - Loss')
+    plt.legend()
+    plt.grid(True)
+
+    # Plot per l'accuracy
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, m['train_accuracies'], label='Train Accuracy')
+    plt.plot(epochs, m['val_accuracies'], label='Validation Accuracy')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.title('Learning Curve - Accuracy')
+    plt.legend()
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.show()
 
 
 def perform_grid_search(train_set, train_indices, val_indices, param_grid, train_labels, device, cfg, model_class):
+    """
+    Esegue una ricerca a griglia (grid search) per trovare i migliori iperparametri di addestramento.
+
+    Args:
+        train_set (Dataset): Il dataset di addestramento completo.
+        train_indices (List[int]): Indici per il set di addestramento.
+        val_indices (List[int]): Indici per il set di validazione.
+        param_grid (Dict[str, List]): Griglia di iperparametri da testare.
+        train_labels (Dict[str, int]): Mappatura delle etichette di addestramento.
+        device (torch.device): Il dispositivo su cui eseguire il modello (CPU o GPU).
+        cfg (DictConfig): Configurazione di Hydra contenente i parametri di addestramento.
+        model_class (nn.Module): Classe del modello da addestrare.
+
+    Returns:
+        Tuple[Dict[str, float], List[Tuple[float, float, float]], Dict, Dict]: Migliori iperparametri, risultati della grid search, stato dell'ottimizzatore, metriche migliori.
+    """
     best_params = None
     best_acc = 0.0
     best_optimizer_state = None
     grid_search_results = []
+    best_metrics = None
 
     for lr in param_grid['learning_rate']:
         for batch_size in param_grid['batch_size']:
@@ -215,22 +404,39 @@ def perform_grid_search(train_set, train_indices, val_indices, param_grid, train
             scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
             loss_function = nn.CrossEntropyLoss()
 
-            val_acc = train_and_evaluate(train_loader, val_loader, model, optimizer, scheduler, loss_function, device,
+            metrics = train_and_evaluate(train_loader, val_loader, model, optimizer, scheduler, loss_function, device,
                                          cfg.model.epochs, model_name=model_class.__name__)
 
+            if metrics is None:
+                logging.warning(f"No metrics were returned for combination: lr={lr}, batch_size={batch_size}")
+            else:
+                logging.info(f"Metrics for lr={lr}, batch_size={batch_size}: {metrics}")
+
+            val_acc = metrics['val_accuracies'][-1] if metrics is not None else 0
             grid_search_results.append((lr, batch_size, val_acc))
 
             if val_acc > best_acc:
                 best_acc = val_acc
                 best_params = {'learning_rate': lr, 'batch_size': batch_size}
                 best_optimizer_state = optimizer.state_dict()
+                best_metrics = metrics
                 torch.save(model.state_dict(), f"{model_class.__name__}_best_model_weights.pth")
 
     logging.info(f"Best parameters found: {best_params} with accuracy {best_acc:.2f}%")
-    return best_params, grid_search_results, best_optimizer_state
+    return best_params, grid_search_results, best_optimizer_state, best_metrics  # Restituisci anche le metriche
 
 
 def plot_grid_search_results(grid_search_results, param_grid):
+    """
+    Plot dei risultati della grid search per visualizzare l'accuratezza in funzione del batch size.
+
+    Args:
+        grid_search_results (List[Tuple[float, float, float]]): Risultati della grid search.
+        param_grid (Dict[str, List]): Griglia di iperparametri utilizzata.
+
+    Returns:
+        None
+    """
     lrs, batch_sizes, accuracies = zip(*grid_search_results)
     plt.figure(figsize=(10, 6))
     for lr in param_grid['learning_rate']:
@@ -249,8 +455,17 @@ def plot_grid_search_results(grid_search_results, param_grid):
 
 @hydra.main(config_path="./configs", config_name="config")
 def main_Glyphnet(cfg):
-    # Avvio del tracker di CodeCarbon
-    tracker = EmissionsTracker(output_dir=cfg.hydra.run.dir)  # Puoi specificare una directory di output se necessario
+    """
+    Funzione principale per l'addestramento e la valutazione del modello Glyphnet.
+
+    Args:
+        cfg (DictConfig): Configurazione di Hydra contenente i percorsi dei dati, parametri di addestramento, ecc.
+
+    Returns:
+        Dict[str, List[float]]: Metriche raccolte durante l'addestramento e la validazione.
+    """
+    # Avvio del tracker di CodeCarbon per monitorare le emissioni
+    tracker = EmissionsTracker()  # Puoi specificare una directory di output se necessario
     tracker.start()
 
     train_labels, test_path, train_path = load_and_split_data(cfg)
@@ -271,8 +486,13 @@ def main_Glyphnet(cfg):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Passare la classe del modello (Glyphnet) come argomento
-    best_params, grid_search_results, best_optimizer_state = perform_grid_search(
+    best_params, grid_search_results, best_optimizer_state, metrics = perform_grid_search(
         train_set, train_indices, val_indices, param_grid, train_labels, device, cfg, Glyphnet)
+
+    # Verifica se metrics è None
+    if metrics is None:
+        logging.error("Metrics were not returned from perform_grid_search, cannot proceed.")
+        return
 
     # Dopo la Grid Search: carica il miglior modello e valuta
     test_labels_set = {l for l in [p.strip("/") for p in listdir(test_path)]}
@@ -301,11 +521,24 @@ def main_Glyphnet(cfg):
     plot_grid_search_results(grid_search_results, param_grid)
     tracker.stop()
 
+    plot_learning_curves(metrics)
+
+    return metrics
+
 
 @hydra.main(config_path="./configs", config_name="config_atcnet")
 def main_ATCNet(cfg):
-    # Avvio del tracker di CodeCarbon
-    tracker = EmissionsTracker(output_dir=cfg.hydra.run.dir)  # Puoi specificare una directory di output se necessario
+    """
+    Funzione principale per l'addestramento e la valutazione del modello ATCNet.
+
+    Args:
+        cfg (DictConfig): Configurazione di Hydra contenente i percorsi dei dati, parametri di addestramento, ecc.
+
+    Returns:
+        Dict[str, List[float]]: Metriche raccolte durante l'addestramento e la validazione.
+    """
+    # Avvio del tracker di CodeCarbon per monitorare le emissioni
+    tracker = EmissionsTracker()  # Puoi specificare una directory di output se necessario
     tracker.start()
 
     train_labels, test_path, train_path = load_and_split_data(cfg)
@@ -320,8 +553,13 @@ def main_ATCNet(cfg):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Passare la classe del modello (ATCNet) come argomento
-    best_params, grid_search_results, best_optimizer_state = perform_grid_search(
+    best_params, grid_search_results, best_optimizer_state, metrics = perform_grid_search(
         train_set, train_indices, val_indices, param_grid, train_labels, device, cfg, ATCNet)
+
+    # Verifica se metrics è None
+    if metrics is None:
+        logging.error("Metrics were not returned from perform_grid_search, cannot proceed.")
+        return
 
     test_set = datasets.ImageFolder(root=test_path, transform=train_transform)
     test_loader = DataLoader(test_set, batch_size=best_params['batch_size'], shuffle=False)
@@ -342,7 +580,11 @@ def main_ATCNet(cfg):
 
     tracker.stop()
 
+    # Plot delle curve di apprendimento
+    plot_learning_curves(metrics)
+
+    return metrics
+
 
 if __name__ == "__main__":
-
-    main_Glyphnet()
+    metrics = main_ATCNet()

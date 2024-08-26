@@ -4,7 +4,7 @@ model:
   num_classes: 171
   seed: 261
   batch_size: 8
-  epochs: 10
+  epochs: 20
   log_progress_steps: 1000
   learning_rate: 0.001
 

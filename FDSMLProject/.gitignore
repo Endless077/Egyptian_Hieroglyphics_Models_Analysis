@@ -17,5 +17,7 @@ result_transfer_learning
 result_atcnet
 result_ensamble_learning
 results_tresnet
+outputs
 
 yolov5
+yolov5s.pt

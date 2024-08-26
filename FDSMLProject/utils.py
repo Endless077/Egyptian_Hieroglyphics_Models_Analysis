@@ -1,8 +1,9 @@
 import os
 import cv2
 
-# Definisci class_to_idx e idx_to_class
+# Definizione dei dizionari class_to_idx e idx_to_class
 class_to_idx = {
+    # Mappatura delle classi alle rispettive etichette numeriche
     'A55': 0, 'Aa15': 1, 'Aa26': 2, 'Aa27': 3, 'Aa28': 4, 'D1': 5, 'D10': 6, 'D156': 7, 'D19': 8,
     'D2': 9, 'D21': 10, 'D28': 11, 'D34': 12, 'D35': 13, 'D36': 14, 'D39': 15, 'D4': 16, 'D46': 17,
     'D52': 18, 'D53': 19, 'D54': 20, 'D56': 21, 'D58': 22, 'D60': 23, 'D62': 24, 'E1': 25, 'E17': 26,
@@ -28,8 +29,27 @@ class_to_idx = {
 
 # Funzione per convertire il dataset YOLOv5 in un dataset di classificazione
 def convert_yolo_to_classification(dataset_dir='dataset', output_dir='classification_dataset'):
-    # Funzione per convertire coordinate normalizzate in coordinate di pixel
+    """
+    Converte un dataset annotato per YOLOv5 in un dataset di classificazione, ritagliando le immagini
+    delle bounding boxes e salvandole in cartelle basate sulla classe.
+
+    Args:
+        dataset_dir (str): Percorso alla directory del dataset YOLOv5 originale.
+        output_dir (str): Percorso alla directory di output dove verrà salvato il dataset di classificazione.
+    """
+
     def normalize_to_pixel_coords(coords, img_width, img_height):
+        """
+        Converte le coordinate normalizzate (YOLO format) in coordinate di pixel.
+
+        Args:
+            coords (list): Lista di coordinate normalizzate (x_center, y_center, width, height).
+            img_width (int): Larghezza dell'immagine.
+            img_height (int): Altezza dell'immagine.
+
+        Returns:
+            list: Lista di tuple contenenti le coordinate in pixel (x, y).
+        """
         pixel_coords = []
         for i in range(0, len(coords), 2):
             x = int(coords[i] * img_width)
@@ -37,8 +57,16 @@ def convert_yolo_to_classification(dataset_dir='dataset', output_dir='classifica
             pixel_coords.append((x, y))
         return pixel_coords
 
-    # Funzione per ottenere la bounding box minima da una serie di punti
     def get_bounding_box_from_points(points):
+        """
+        Ottiene la bounding box minima che contiene una serie di punti.
+
+        Args:
+            points (list): Lista di punti come tuple (x, y).
+
+        Returns:
+            tuple: Coordinate della bounding box (x_min, y_min, x_max, y_max).
+        """
         x_min = min(point[0] for point in points)
         y_min = min(point[1] for point in points)
         x_max = max(point[0] for point in points)
@@ -80,7 +108,7 @@ def convert_yolo_to_classification(dataset_dir='dataset', output_dir='classifica
                 # Ottieni la bounding box che contiene tutti i punti
                 x_min, y_min, x_max, y_max = get_bounding_box_from_points(points)
 
-                # Ritagliare l'immagine
+                # Ritagliare l'immagine usando la bounding box
                 cropped_img = image[y_min:y_max, x_min:x_max]
 
                 # Salva l'immagine ritagliata nella cartella della classe corrispondente
@@ -88,7 +116,9 @@ def convert_yolo_to_classification(dataset_dir='dataset', output_dir='classifica
                 if not os.path.exists(class_folder):
                     os.makedirs(class_folder)
 
+                # Genera un nome unico per l'immagine ritagliata
                 img_name = os.path.basename(image_path).replace('.jpg', f'_{x_min}_{y_min}.jpg')
                 cv2.imwrite(os.path.join(class_folder, img_name), cropped_img)
 
     print("Conversione completata!")
+

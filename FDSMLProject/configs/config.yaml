@@ -5,9 +5,9 @@ defaults:
   - _self_
 
 data:
-  train_path: "classification_dataset/train/"
+  train_path: "balanced_data/train/"
   val_fraction: 0.3
-  test_path: "classification_dataset/test/"
+  test_path: "balanced_data/test/"
 
 model:
   batch_size: 8
