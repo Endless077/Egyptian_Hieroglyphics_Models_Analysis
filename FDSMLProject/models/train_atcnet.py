@@ -1,4 +1,4 @@
-import utils
+from utils import *
 
 @hydra.main(config_path="../configs", config_name="config_atcnet")
 def main_ATCNet(cfg):
@@ -59,5 +59,5 @@ def main_ATCNet(cfg):
 
     return metrics
     
-    if __name__ == "__main__":
+if __name__ == "__main__":
     metrics = main_ATCNet()

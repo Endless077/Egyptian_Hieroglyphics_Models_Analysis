@@ -5,10 +5,11 @@ import random
 import matplotlib.pyplot as plt
 from torchvision import transforms
 from PIL import Image
-from dataset import GlyphData
+
 from typing import Dict
 
-from utils import class_to_idx
+from dataset.GlyphDataset.dataset import GlyphData
+from dataset.yolo_extraction_dataset import class_to_idx
 
 
 def create_class_to_idx(dataset_dir):

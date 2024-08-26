@@ -13,7 +13,7 @@ def train_yolov5(data_yaml, epochs=50, batch_size=16, img_size=640):
         img_size (int): La dimensione delle immagini di input (default: 640).
     """
     # Costruisce il comando per l'addestramento di YOLOv5
-    command = f"python yolov5/train.py --img {img_size} --batch {batch_size} --epochs {epochs} --data {data_yaml} --weights yolov5s.pt --cache"
+    command = f"python ../yolov5/train.py --img {img_size} --batch {batch_size} --epochs {epochs} --data {data_yaml} --weights yolov5s.pt --cache"
 
     # Esegue il comando tramite il terminale
     subprocess.run(command, shell=True)

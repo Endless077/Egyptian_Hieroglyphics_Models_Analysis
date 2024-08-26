@@ -127,7 +127,7 @@ transform = transforms.ToTensor()
 tensor = transform(img).unsqueeze(0)  # Converte l'immagine in un tensore e aggiunge una dimensione per il batch
 
 # Carica il modello YOLOv5 addestrato
-model_path = "yolov5/runs/train/exp23/weights/best.pt"
+model_path = "../results/results_yolov5/best_weights/best.pt"
 model = torch.hub.load('ultralytics/yolov5', 'custom', path=model_path, force_reload=True)
 model.eval()  # Imposta il modello in modalità di valutazione
 model.cpu()  # Sposta il modello sulla CPU

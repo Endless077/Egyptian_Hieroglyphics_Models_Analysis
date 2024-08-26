@@ -1,3 +1,5 @@
+import os
+
 import torch
 import numpy as np
 from lime import lime_image
@@ -259,6 +261,7 @@ def compare_explanations(image_path, models, model_weights, device, output_path=
         int: La classe prevista dall'ensemble.
     """
     logging.info(f"Caricamento dell'immagine da interpretare: {image_path}")
+    image_path = os.path.join(hydra.utils.get_original_cwd(), image_path)
     image = Image.open(image_path)
     image = np.array(image)
 
@@ -328,7 +331,7 @@ def compare_explanations(image_path, models, model_weights, device, output_path=
     return top_label
 
 
-@hydra.main(config_path="./configs", config_name="config_lime")
+@hydra.main(config_path="../configs", config_name="config_lime")
 def main(cfg: DictConfig):
     """
     Funzione principale che gestisce il caricamento del modello e l'esecuzione della spiegazione richiesta.
@@ -338,17 +341,18 @@ def main(cfg: DictConfig):
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f"Caricamento del modello ensemble da {cfg.ensemble_model_path}...")
-    models, model_weights = load_ensemble_model(cfg.ensemble_model_path, device, cfg.num_classes)
-
+    ensemble_model_path = os.path.join(hydra.utils.get_original_cwd(), cfg.ensemble_model_path)
+    models, model_weights = load_ensemble_model(ensemble_model_path, device, cfg.num_classes)
+    image_path = os.path.join(hydra.utils.get_original_cwd(), cfg.image_path)
     if cfg.explanation_method == "compare":
         # Confronta le spiegazioni
-        compare_explanations(cfg.image_path, models, model_weights, device)
+        compare_explanations(image_path, models, model_weights, device)
     elif cfg.explanation_method == "custom":
         # Usa la spiegazione personalizzata
-        custom_explanation(cfg.image_path, models, model_weights, device, true_class=cfg.true_class)
+        custom_explanation(image_path, models, model_weights, device, true_class=cfg.true_class)
     elif cfg.explanation_method == "lime":
         # Usa la libreria LIME per la spiegazione
-        lime_library_explanation(cfg.image_path, models, model_weights, device,
+        lime_library_explanation(image_path, models, model_weights, device,
                                  true_class=cfg.true_class)
     else:
         raise ValueError(

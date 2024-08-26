@@ -1,4 +1,4 @@
-import os
+import sys
 import torch
 import numpy as np
 import timm
@@ -9,8 +9,10 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from lime import lime_image  # Import the LIME library
 
-from ATCNet import ATCNet
-from model import Glyphnet
+
+sys.path.append('../models/GlyphNet')
+from models.ATCNet import ATCNet
+from models.GlyphNet.model import Glyphnet
 
 # Imposta il dispositivo su GPU se disponibile, altrimenti usa la CPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -32,11 +34,11 @@ def load_model(model_name):
         model.load_state_dict(checkpoint, strict=False)
     elif model_name == "ATCNet":
         model = ATCNet(n_classes=171)  # Specifica il numero di classi corretto per il tuo modello
-        checkpoint = torch.load("../results/result_atcnet/best_weights/best_model_weights.pth", map_location=device)
+        checkpoint = torch.load("../results/results_atcnet/best_weights/best_model_weights.pth", map_location=device)
         model.load_state_dict(checkpoint, strict=False)
     elif model_name == "tresnet_m":
         model = timm.create_model('tresnet_m', pretrained=True, num_classes=50)
-        checkpoint = torch.load("../results/results_tresnet/best_weights/best_tresnet_model.pth", map_location=device)
+        checkpoint = torch.load("../results/results_tresnet/best_weights/best_model_weights.pth", map_location=device)
         model.load_state_dict(checkpoint, strict=False)
     else:
         raise ValueError(f"Model {model_name} not recognized.")
@@ -253,15 +255,17 @@ def main_lime(model_name):
     # Definisce i percorsi delle immagini in base al modello
     if model_name in ['Glyphnet', 'ATCNet']:
         image_paths = [
-            "balanced_data/train/Aa26/aug_4_3534f1a21ff6b826a1268c3ae2e13d23.png",
-            "balanced_data/train/D1/5c6f10aadc08904fa1edbff37c6da96d.png",
-            "balanced_data/train/D1/d8bfe00858c74d3b3a642434917e3abd.png"
+            "../datasets/balanced_data/train/Aa26/aug_4_3534f1a21ff6b826a1268c3ae2e13d23.png",
+            "../datasets/balanced_data/train/D1/5c6f10aadc08904fa1edbff37c6da96d.png",
+            "../datasets/balanced_data/train/D1/d8bfe00858c74d3b3a642434917e3abd.png"
         ]
     else:
         image_paths = [
-            "classification_dataset/train/4/Screen-Shot-2020-07-06-at-4-52-56-PM_1_png.rf.d4a00cb87156c556560216c84e118b50_516_341.jpg",
-            "classification_dataset/train/49/wall_section9237_3_png.rf.1d0ca3489d53ac9e8ef34f2bcf64a4ac_321_400.jpg",
-            "classification_dataset/train/47/ZofUksf_4_png.rf.8c84a343c41dc2cfb082f27ee7004230_469_122.jpg"
+            "../datasets/classification_dataset/train/4/Screen-Shot-2020-07-06-at-4-52-56-PM_1_png.rf"
+            ".d4a00cb87156c556560216c84e118b50_516_341.jpg",
+            "../datasets/classification_dataset/train/49/wall_section9237_3_png.rf"
+            ".1d0ca3489d53ac9e8ef34f2bcf64a4ac_321_400.jpg",
+            "../datasets/classification_dataset/train/47/ZofUksf_4_png.rf.8c84a343c41dc2cfb082f27ee7004230_469_122.jpg"
         ]
 
     for image_path in image_paths:

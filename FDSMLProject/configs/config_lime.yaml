@@ -1,8 +1,17 @@
-image_path: "../results/results_ensamble/best/weights/best_model_weights.pth"
-ensemble_model_path: "../results/results_ensamble/best/weights/best_model_weights.pth"
+image_path: "../datasets/classification_dataset/train/0/Screen-Shot-2020-07-06-at-4-08-42-PM_3_png.rf.14f0bdb3009f5886c3bea22da6b9d470_200_496.jpg"
+ensemble_model_path: "../results/results_ensamble/best_weights/best_model_weights.pth"
 
 num_classes: 50  # Modifica in base al numero di classi
 use_weights: true
 model_weights: [0.5, 0.5]  # Modifica con i pesi calcolati
 true_class: 49  # Imposta la classe vera dell'immagine
 explanation_method: "compare"  # or "custom"
+
+hydra:
+  job:
+    config:
+      override_dirname:
+        exclude_keys:
+          - model.log_progress_steps
+  run:
+    dir: ../results/result_lime_ensamble_learning/${now:%Y-%m-%d_%H-%M-%S}

@@ -1,14 +1,18 @@
+import sys
+
 import cv2
 import torch
 from torchvision import transforms
 from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
-from model import Glyphnet
-import utils
+
+sys.path.append('../models/GlyphNet')
+from dataset.yolo_extraction_dataset import class_to_idx
+from models.GlyphNet.model import Glyphnet
 
 # Dizionario che mappa gli indici delle classi ai loro nomi
-idx_to_class = {v: k for k, v in utils.class_to_idx.items()}
+idx_to_class = {v: k for k, v in class_to_idx.items()}
 
 # Carica l'immagine
 image_path = '../datasets/data/Dataset/Pictures/hieroglyphics-stone-2.jpg'
@@ -40,7 +44,7 @@ filtered_contours = [cnt for cnt in contours if cv2.contourArea(cnt) > 110]
 
 # Carica il modello Glyphnet addestrato per la classificazione dei geroglifici
 model = Glyphnet(num_classes=171)  # Assicurati di sostituire 171 con il numero corretto di classi
-model.load_state_dict(torch.load("../results/results:glyphnet/best_weights/best_model_weights.pth"))
+model.load_state_dict(torch.load("../results/results_glyphnet/best_weights/best_model_weights.pth"))
 model.eval()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)

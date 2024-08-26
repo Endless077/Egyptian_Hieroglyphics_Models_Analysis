@@ -1,9 +1,9 @@
 data:
-  train_path: 'classification_dataset/train/'
-  val_path: 'classification_dataset/valid/'
+  train_path: '../datasets/classification_dataset/train/'
+  val_path: '../datasets/classification_dataset/valid/'
 
   val_fraction: 0.3
-  test_path: "classification_dataset/test/"
+  test_path: "../datasets/classification_dataset/test/"
 
 train:
   batch_size: 64

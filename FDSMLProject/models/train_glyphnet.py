@@ -1,4 +1,6 @@
-import utils
+from dataset.GlyphDataset.dataset import GlyphData
+from utils import *
+
 
 @hydra.main(config_path="../configs", config_name="config_glyphnet")
 def main_Glyphnet(cfg):
@@ -71,6 +73,7 @@ def main_Glyphnet(cfg):
     plot_learning_curves(metrics)
 
     return metrics
-    
-    if __name__ == "__main__":
+
+
+if __name__ == "__main__":
     metrics = main_Glyphnet()

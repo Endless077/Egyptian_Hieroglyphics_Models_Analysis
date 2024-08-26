@@ -17,8 +17,7 @@ from torchvision import transforms, datasets
 import matplotlib.pyplot as plt
 
 from ATCNet import ATCNet
-from dataset import GlyphData
-from model import Glyphnet
+from models.GlyphNet.model import Glyphnet
 
 # Definisce una griglia di iperparametri per la ricerca
 param_grid = {

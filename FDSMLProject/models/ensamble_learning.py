@@ -303,7 +303,9 @@ def main(cfg: DictConfig):
     logging.info(f'Caricamento del dataset da {train_path} e {val_path}...')
 
     # Creare directory per salvare i file
-    save_dir = os.path.join(hydra.utils.get_original_cwd(), 'saved_models')
+    # Costruisci il percorso dinamico per il salvataggio del modello
+    save_dir = os.path.join(hydra.utils.get_original_cwd(), '../results/result_ensamble_learning')
+
     os.makedirs(save_dir, exist_ok=True)
     logging.info(f"Files will be saved in: {save_dir}")
 
