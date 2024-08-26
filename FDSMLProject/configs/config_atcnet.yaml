@@ -14,9 +14,9 @@ train:
   num_epochs: 25
 
 data:
-  train_path: 'balanced_data/train/'
-  val_path: 'balanced_data/train/'
-  test_path: 'balanced_data/test/'
+  train_path: '../datasets/balanced_data/train/'
+  val_path: '../datasets/balanced_data/train/'
+  test_path: '../datasets/balanced_data/test/'
   val_fraction: 0.3
 
 data_transforms:
@@ -34,7 +34,7 @@ data_transforms:
       - _target_: torchvision.transforms.ToTensor
 
 results:
-  dir: 'result_atcnet'
+  dir: '../results/result_atcnet'
 
 hydra:
   job:
@@ -43,7 +43,7 @@ hydra:
         exclude_keys:
           - model.log_progress_steps
   run:
-    dir: ./result_atcnet/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ../results/result_atcnet/${now:%Y-%m-%d_%H-%M-%S}
   sweep:
-    dir: results/${data.path}/
+    dir: ../results/result_atcnet/${data.path}/
     subdir: ${hydra.job.override_dirname}

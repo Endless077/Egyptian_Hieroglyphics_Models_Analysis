@@ -1,12 +1,16 @@
 # Ignore Dataset
 data
+datasets
 prepared_data
 images
 preprocess_data
 balanced_data_prov
 balanced_data
-dataset
 classification_dataset
+
+# .idea
+.idea
+.DS_Store
 
 # __pycache__
 __pycache__
@@ -19,5 +23,6 @@ result_ensamble_learning
 results_tresnet
 outputs
 
+# yolov5
 yolov5
 yolov5s.pt

@@ -1,5 +1,4 @@
 # config/config_tresnet.yaml
-
 model:
   model_name: "tresnet_m"
   pretrained: true
@@ -22,9 +21,9 @@ train:
 data_dir: "classification_dataset"
 
 data:
-  train_path: "classification_dataset/train/"
-  valid_path: "classification_dataset/valid/"
-  test_path: "classification_dataset/test/"
+  train_path: "../datasets/classification_dataset/train/"
+  valid_path: "../datasets/classification_dataset/valid/"
+  test_path: "../datasets/classification_dataset/test/"
 
 device: ${oc.env:DEVICE,cuda:0}
 
@@ -35,9 +34,9 @@ hydra:
         exclude_keys:
           - model.log_progress_steps
   run:
-    dir: ./results_tresnet/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ../results/results_tresnet/${now:%Y-%m-%d_%H-%M-%S}
   sweep:
-    dir: results_tresnet/${data.path}/
+    dir: ../results/results_tresnet/${data.path}/
     subdir: ${hydra.job.override_dirname}
   help:
     template:

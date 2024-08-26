@@ -1,5 +1,5 @@
-image_path: "C:\\Users\\aless\\Desktop\\Egyptian_Hieroglyphics_Translator\\FDSMLProject\\classification_dataset\\valid\\4\\wall_section10872_8_png.rf.814253dfad30199599f5ac61aaf86f68_133_270.jpg"
-ensemble_model_path: "C:\\Users\\aless\\Desktop\\Egyptian_Hieroglyphics_Translator\\FDSMLProject\\result_ensamble_learning\\2024-08-17_17-09-47\\saved_models\\ensemble_model.pth"
+image_path: "../results/results_ensamble/best/weights/best_model_weights.pth"
+ensemble_model_path: "../results/results_ensamble/best/weights/best_model_weights.pth"
 
 num_classes: 50  # Modifica in base al numero di classi
 use_weights: true
