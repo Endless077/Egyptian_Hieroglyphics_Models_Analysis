@@ -1,0 +1,22 @@
+# Integrated Development Environments
+.idea
+.vscode
+
+# __pycache__
+__pycache__
+
+# others
+.DS_Store
+
+# output folders
+data
+images
+outputs
+results
+
+# datasets folders
+datasets
+
+# You Only Look Once (YOLO)
+yolov5
+yolov5s.pt
