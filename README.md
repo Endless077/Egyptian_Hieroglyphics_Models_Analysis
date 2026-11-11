@@ -96,9 +96,10 @@ We provide two methods to set up your environment: using `requirements.txt` or `
 
 Once the environment is set up, you can explore the project scripts. Each script includes auto-explanatory comments to help you understand its functionality and purpose. Open the scripts in your preferred code editor to review the comments and get insights into the code logic.
 
-### 📧 **Contact a Collaborator:**
+### 📧 **Contact a Collaborators:**
 
 If you encounter any issues or need further clarification, feel free to reach out to one of the project collaborators. You can contact them through their GitHub profiles.
+
 They will be happy to assist you with any questions or technical difficulties.
 
 
@@ -107,6 +108,11 @@ They will be happy to assist you with any questions or technical difficulties.
 - [Fulvio Serao](https://github.com/Fulvioserao99)
 - [Antonio Garofalo](https://github.com/Endless077)
 - [Alessia Ture](https://github.com/a-ture)
+
+
+## 🔔 Support
+
+For support, feel free to reach out via [GitHub](https://github.com/Endless077) or contact the project contributors.
 
 
 ## 📚 Reference
